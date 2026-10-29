@@ -1,0 +1,57 @@
+# Deployment on the VPS (Coolify: "Docker Compose" as the resource type).
+# The models are NOT here: they run on your PC with Ollama and are reached over Tailscale (OLLAMA_BASE_URL).
+# Only the `frontend` service is exposed to the internet (assign your domain to it in Coolify, port 3000).
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: support
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?define POSTGRES_PASSWORD}
+      POSTGRES_DB: support
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U support -d support"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://support:${POSTGRES_PASSWORD}@db:5432/support
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?define OLLAMA_BASE_URL, e.g. http://100.x.y.z:11434}
+      LLM_MODEL: ${LLM_MODEL:-gemma4:e2b}
+      EMBED_MODEL: ${EMBED_MODEL:-embeddinggemma}
+      EMBED_DIM: ${EMBED_DIM:-768}
+      EMBED_QUERY_PREFIX: "${EMBED_QUERY_PREFIX:-task: search result | query: }"
+      EMBED_DOC_PREFIX: "${EMBED_DOC_PREFIX:-title: none | text: }"
+      NUM_CTX: ${NUM_CTX:-8192}
+      MIN_SCORE: ${MIN_SCORE:-0.45}
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?define INTERNAL_API_KEY}
+      CONFIRM_SECRET: ${CONFIRM_SECRET:?define CONFIRM_SECRET}
+      RATE_LIMIT_PER_MIN: ${RATE_LIMIT_PER_MIN:-12}
+      MAX_CONCURRENT_LLM: ${MAX_CONCURRENT_LLM:-2}
+    expose:
+      - "8000"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      BACKEND_URL: http://backend:8000
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:?define INTERNAL_API_KEY}
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-1}
+    expose:
+      - "3000"
+
+volumes:
+  pgdata:

@@ -1,0 +1,56 @@
+# Models on YOUR PC, all in Docker (no Tailscale install needed on Windows).
+#
+#   cp .env.ollama.example .env.ollama      # then fill in TS_AUTHKEY
+#   docker compose -f docker-compose.ollama.yml --env-file .env.ollama up -d
+#
+# The `tailscale` container joins your tailnet as a device named `ollama-pc`, and Ollama shares
+# its network (network_mode), so Ollama is reachable ONLY from your tailnet: no ports are published.
+# The VPS then uses OLLAMA_BASE_URL=http://<ollama-pc Tailscale IP>:11434
+
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    hostname: ${TS_HOSTNAME:-ollama-pc}
+    environment:
+      TS_AUTHKEY: ${TS_AUTHKEY:?define TS_AUTHKEY (Tailscale admin console → Settings → Keys)}
+      TS_STATE_DIR: /var/lib/tailscale
+      # If the container cannot open /dev/net/tun on your Docker setup, comment out `devices` and
+      # `cap_add` below and uncomment the next line (userspace networking):
+      # TS_USERSPACE: "true"
+    volumes:
+      - ts-state:/var/lib/tailscale
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - NET_ADMIN
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    network_mode: service:tailscale   # shares the Tailscale container's network
+    depends_on:
+      - tailscale
+    environment:
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-30m}
+    volumes:
+      - ollama:/root/.ollama
+    restart: unless-stopped
+    # NVIDIA GPU (Docker Desktop + WSL2 + NVIDIA drivers): uncomment the next line.
+    # gpus: all
+
+  # One-shot helper: downloads the models once Ollama is up, then exits.
+  pull-models:
+    image: ollama/ollama:latest
+    network_mode: service:tailscale
+    depends_on:
+      - ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >
+        until ollama list >/dev/null 2>&1; do sleep 2; done;
+        ollama pull ${LLM_MODEL:-gemma4:e2b} && ollama pull ${EMBED_MODEL:-embeddinggemma}
+    restart: "no"
+
+volumes:
+  ts-state:
+  ollama:
