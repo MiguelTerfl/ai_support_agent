@@ -1,6 +1,6 @@
 # Aurora Electro · AI support agent
 
-A demo support agent for a fictional store: **RAG**, **tools** with human confirmation, and **guardrails**, running on a local model. 
+A support agent for a fictional store: **RAG**, **tools** with human confirmation, and **guardrails**, running on a local model.
 
 ```mermaid
 flowchart LR
@@ -15,9 +15,9 @@ flowchart LR
     end
 ```
 
-The VPS only runs the app (≈ 1 GB of RAM is plenty); the models live on your PC and are reached over a private Tailscale network. Only the frontend has a public domain.
+The VPS only runs the app; the models live on your PC and are reached over a private Tailscale network. Only the frontend has a public domain.
 
-## What it demonstrates
+## Key features
 
 | Piece | How it is built |
 |---|---|
@@ -43,7 +43,7 @@ backend/
     lang.py           language detection and localized messages
     prompts.py        system prompt (with canary)
     rag/              chunking · ingest · retriever
-    db.py             pgvector + FTS + demo data
+    db.py             pgvector + FTS + sample data
     main.py           FastAPI (/api/chat, /api/confirm, /api/health)
   data/docs/          6 knowledge-base documents (English)
   eval/               37 cases (23 Spanish, 14 English) + model comparison
@@ -135,8 +135,8 @@ If the container cannot reach the host's Tailscale IP, add a `tailscale` contain
 - **The figures guardrail is heuristic:** it catches invented prices, deadlines and quantities (the costliest failure of a support agent), but it does not verify claims that contain no numbers. That would need an entailment checker or an LLM judge.
 - **One English knowledge base, two languages:** this is the simplest option and avoids maintaining two knowledge bases, but it relies on the model translating well when it answers and on `embeddinggemma` handling Spanish questions well if the model ever searches in Spanish. If the Spanish evaluation comes out weak, the alternative is to keep per-language documents and store the language as chunk metadata. Language detection only tells Spanish from English; any other language is treated as English.
 - **In-memory state:** the rate limit and token anti-replay only work with a single backend instance. With several, move them to Redis/Postgres.
-- **Order verification by email:** this is a demonstration of basic authorization, not a real authentication system. In production you would use the customer's session.
-- **Availability:** if your PC is switched off, the demo shows "model offline". For an always-on demo, add a fallback model behind an API behind the same interface (`OllamaClient`).
+- **Order verification by email:** this is a basic authorization check, not a real authentication system. In production you would use the customer's session.
+- **Availability:** if your PC is switched off, the app shows "model offline". For always-on availability, add a fallback model behind an API behind the same interface (`OllamaClient`).
 
 ## Possible next steps
 
